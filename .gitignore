@@ -1,0 +1,12 @@
+admin-panel/api/node_modules
+admin-panel/api/dist
+admin-panel/client/node_modules
+admin-panel/client/dist
+chaincodes/vote-tally-cc/node_modules
+chaincodes/vote-tally-cc/dist
+chaincodes/voter-permit-cc/node_modules
+chaincodes/voter-permit-cc/dist
+chaincodes/election-cc/node_modules
+chaincodes/election-cc/dist
+
+admin-panel/api/src/networkConnection/wallet
