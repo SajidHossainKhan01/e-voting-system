@@ -11,6 +11,8 @@ const apiV1 = "/api/v1";
 
 const app = express();
 app.use(express.json());
+// Optional: for form submissions
+app.use(express.urlencoded({ extended: true }));
 app.use(cors());
 app.use("/uploads/user_images", express.static("uploads/user_images"));
 

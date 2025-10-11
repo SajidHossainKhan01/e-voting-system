@@ -2,8 +2,42 @@ import { IoMdClose } from "react-icons/io";
 import Flex from "../../ui/Flex";
 import Text from "../../ui/Text";
 import type { TVoter } from "../../../types/VoterTypes";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useConstituencyStore } from "../../../store/constituencyStore";
+
+type TVoterFormData = {
+  voterId: string;
+  voterName: string;
+  dateOfBirth: string;
+  divisionName: string;
+  districtName: string;
+  constituencyNumber: number;
+  constituencyName: string;
+  constituencyType: string;
+  upazilaName: string;
+  unionName: string;
+  unionWardNumber: number;
+  cityCorporationName: string;
+  cityCorporationWardNumber: number;
+  homeAddress: string;
+};
+
+const DEFAULT_VALUE = {
+  voterId: "",
+  voterName: "",
+  dateOfBirth: "",
+  divisionName: "",
+  districtName: "",
+  constituencyNumber: 0,
+  constituencyName: "",
+  constituencyType: "",
+  upazilaName: "",
+  unionName: "",
+  unionWardNumber: 0,
+  cityCorporationName: "",
+  cityCorporationWardNumber: 0,
+  homeAddress: "",
+};
 
 type TAddVoterModal = {
   isOpen: boolean;
@@ -16,17 +50,17 @@ const AddVoterModal: React.FC<TAddVoterModal> = ({
   setIsOpen,
   onSuccess,
 }) => {
-  const [formData, setFormData] = useState<Record<string, string | number>>({});
-  const [inputError, setInputError] = useState<Record<string, string>>({});
+  const [formData, setFormData] = useState<TVoterFormData>(DEFAULT_VALUE);
+  const [inputError, setInputError] = useState<Record<string, boolean>>({});
   const { divisionList } = useConstituencyStore();
 
   const onChangeFormData = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
-    if (name) {
-      setFormData((state) => ({ ...state, [name]: value }));
-    }
+
+    setFormData((state) => ({ ...state, [name]: value }));
+    setInputError((error) => ({ ...error, [name]: false }));
   };
 
   const selectedDivision = divisionList.find(
@@ -41,32 +75,77 @@ const AddVoterModal: React.FC<TAddVoterModal> = ({
   );
 
   const handleCancel = () => {
+    setFormData(DEFAULT_VALUE);
     setIsOpen(false);
   };
 
-  const handleSubmit = useCallback(
-    (e: React.FormEvent<HTMLFormElement>) => {
-      e.preventDefault();
-      const errors: Record<string, string> = {};
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const errors: Record<string, boolean> = {};
 
-      if(!formData.voterName) errors.voterName = "Voter Name is required!"
-      if(!formData.divisionName) errors.divisionName = "Division Name is required!"
+    Array.from(form.elements).forEach((el) => {
+      if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement) {
+        const name = el.name;
+        const value = el.value;
 
-      // TODO: Create the submit form data
-
-      if (Object.keys(errors).length > 0) {
-        setInputError(errors);
-      } else {
-        onSuccess(formData);
-        setIsOpen(false);
+        if (!value) {
+          errors[name] = true;
+        }
       }
-    },
-    [formData, onSuccess, setIsOpen]
-  );
+    });
+
+    if (Object.entries(errors).length > 0) {
+      setInputError(errors);
+    } else {
+      const constituencyName = selectedConstituency?.constituencyName ?? "";
+      let newVoter: Partial<TVoter>;
+
+      if (formData.constituencyType === "upazila") {
+        newVoter = {
+          voterId: formData.voterId,
+          voterName: formData.voterName,
+          dateOfBirth: formData.dateOfBirth,
+          constituency: {
+            constituencyNumber: Number(formData.constituencyNumber),
+            constituencyName: constituencyName,
+            districtName: formData.districtName,
+            divisionName: formData.divisionName,
+            homeAddress: formData.homeAddress,
+            upazila: {
+              upazilaName: formData.upazilaName,
+              unionName: formData.unionName,
+              wardNumber: Number(formData.unionWardNumber),
+            },
+          },
+        };
+      } else {
+        newVoter = {
+          voterId: formData.voterId,
+          voterName: formData.voterName,
+          dateOfBirth: formData.dateOfBirth,
+          constituency: {
+            constituencyNumber: Number(formData.constituencyNumber),
+            constituencyName: constituencyName,
+            districtName: formData.districtName,
+            divisionName: formData.divisionName,
+            homeAddress: formData.homeAddress,
+            cityCorporation: {
+              cityCorporationName: formData.cityCorporationName,
+              wardNumber: Number(formData.cityCorporationWardNumber),
+            },
+          },
+        };
+      }
+      onSuccess(newVoter);
+      setInputError({});
+      setIsOpen(false);
+    }
+  };
 
   useEffect(() => {
     if (!isOpen) {
-      setFormData({});
+      setFormData(DEFAULT_VALUE);
       setInputError({});
     }
   }, [isOpen]);
@@ -105,6 +184,25 @@ const AddVoterModal: React.FC<TAddVoterModal> = ({
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="py-2 flex flex-col gap-4">
+          {/* Voter Id */}
+          <Flex className="flex-col gap-2">
+            <label htmlFor="voterId">
+              <Text size={5} className="font-semibold">
+                Voter Id
+              </Text>
+            </label>
+            <input
+              type="text"
+              name="voterId"
+              value={formData.voterId ?? ""}
+              placeholder="Enter Voter Id"
+              onChange={onChangeFormData}
+              className={`border-[2px] ${
+                inputError.voterId ? "border-red-500" : "border-indigo-300"
+              } focus:outline-indigo-500 px-2 py-1 rounded-md font-medium`}
+            />
+          </Flex>
+
           {/* Voter Name */}
           <Flex className="flex-col gap-2">
             <label htmlFor="voterName">
@@ -116,12 +214,13 @@ const AddVoterModal: React.FC<TAddVoterModal> = ({
               type="text"
               name="voterName"
               id="voterName"
-              value={formData.voterName}
+              value={formData.voterName ?? ""}
               placeholder="Enter Voter Name"
               onChange={onChangeFormData}
-              className="border-[2px] border-indigo-300 focus:outline-indigo-500 px-2 py-1 rounded-md font-medium"
+              className={`border-[2px] ${
+                inputError.voterName ? "border-red-500" : "border-indigo-300"
+              } focus:outline-indigo-500 px-2 py-1 rounded-md font-medium`}
             />
-            <Text size={6} className="text-red-500">{inputError.voterName}</Text>
           </Flex>
 
           {/* Division */}
@@ -131,7 +230,9 @@ const AddVoterModal: React.FC<TAddVoterModal> = ({
               name="divisionName"
               value={formData.divisionName}
               onChange={onChangeFormData}
-              className="border-[2px] border-indigo-300 px-2 py-1 rounded-md"
+              className={`border-[2px] ${
+                inputError.divisionName ? "border-red-500" : "border-indigo-300"
+              } px-2 py-1 rounded-md`}
             >
               <option value="">Select Division</option>
               {divisionList.map((d) => (
@@ -142,16 +243,19 @@ const AddVoterModal: React.FC<TAddVoterModal> = ({
             </select>
           </Flex>
 
-          {/* Divison */}
-
+          {/* District Name */}
           {selectedDivision && (
             <Flex className="flex-col gap-2">
-              <label>District</label>
+              <label>District Name</label>
               <select
                 name="districtName"
                 value={formData.districtName}
                 onChange={onChangeFormData}
-                className="border-[2px] border-indigo-300 px-2 py-1 rounded-md"
+                className={`border-[2px] ${
+                  inputError.districtName
+                    ? "border-red-500"
+                    : "border-indigo-300"
+                } px-2 py-1 rounded-md`}
               >
                 <option value="">Select District</option>
                 {selectedDivision.districts.map((dist) => (
@@ -171,7 +275,11 @@ const AddVoterModal: React.FC<TAddVoterModal> = ({
                 name="constituencyNumber"
                 value={formData.constituencyNumber}
                 onChange={onChangeFormData}
-                className="border-[2px] border-indigo-300 px-2 py-1 rounded-md"
+                className={`border-[2px] ${
+                  inputError.constituencyNumber
+                    ? "border-red-500"
+                    : "border-indigo-300"
+                } px-2 py-1 rounded-md`}
               >
                 <option value="">Select Constituency</option>
                 {selectedDistrict.constituencies.map((c) => (
@@ -194,7 +302,11 @@ const AddVoterModal: React.FC<TAddVoterModal> = ({
                 name="constituencyType"
                 value={formData.constituencyType}
                 onChange={onChangeFormData}
-                className="border-[2px] border-indigo-300 px-2 py-1 rounded-md"
+                className={`border-[2px] ${
+                  inputError.cityCorporationType
+                    ? "border-red-500"
+                    : "border-indigo-300"
+                } px-2 py-1 rounded-md`}
               >
                 <option value="">Select Type</option>
                 {selectedConstituency.boundaries.upazilas && (
@@ -208,8 +320,9 @@ const AddVoterModal: React.FC<TAddVoterModal> = ({
           )}
 
           {/* Upazila Fields */}
-          {formData.constituencyType &&
-            selectedConstituency?.boundaries.upazilas && (
+          {formData.constituencyType === "upazila" &&
+            selectedConstituency?.boundaries.upazilas &&
+            selectedConstituency.boundaries.upazilas.length > 0 && (
               <>
                 {/* Upazila */}
                 <Flex className="flex-col gap-2">
@@ -218,7 +331,11 @@ const AddVoterModal: React.FC<TAddVoterModal> = ({
                     name="upazilaName"
                     value={formData.upazilaName}
                     onChange={onChangeFormData}
-                    className="border-[2px] border-indigo-300 px-2 py-1 rounded-md"
+                    className={`border-[2px] ${
+                      inputError.upazilaName
+                        ? "border-red-500"
+                        : "border-indigo-300"
+                    } px-2 py-1 rounded-md`}
                   >
                     <option value="">Select Upazila</option>
                     {selectedConstituency.boundaries.upazilas.map((u) => (
@@ -237,7 +354,11 @@ const AddVoterModal: React.FC<TAddVoterModal> = ({
                       name="unionName"
                       value={formData.unionName}
                       onChange={onChangeFormData}
-                      className="border-[2px] border-indigo-300 px-2 py-1 rounded-md"
+                      className={`border-[2px] ${
+                        inputError.unionName
+                          ? "border-red-500"
+                          : "border-indigo-300"
+                      } px-2 py-1 rounded-md`}
                     >
                       <option value="">Select Union</option>
                       {selectedConstituency.boundaries.upazilas
@@ -259,7 +380,11 @@ const AddVoterModal: React.FC<TAddVoterModal> = ({
                       name="unionWardNumber"
                       value={formData.unionWardNumber}
                       onChange={onChangeFormData}
-                      className="border-[2px] border-indigo-300 px-2 py-1 rounded-md"
+                      className={`border-[2px] ${
+                        inputError.unionWardNumber
+                          ? "border-red-500"
+                          : "border-indigo-300"
+                      } px-2 py-1 rounded-md`}
                     >
                       <option value="">Select Ward</option>
                       {selectedConstituency.boundaries.upazilas
@@ -279,8 +404,9 @@ const AddVoterModal: React.FC<TAddVoterModal> = ({
             )}
 
           {/* City Corporation Fields */}
-          {formData.constituencyType &&
-            selectedConstituency?.boundaries.cityCorporations && (
+          {formData.constituencyType === "cityCorporation" &&
+            selectedConstituency?.boundaries.cityCorporations &&
+            selectedConstituency.boundaries.cityCorporations.length > 0 && (
               <>
                 <Flex className="flex-col gap-2">
                   <label>City Corporation</label>
@@ -288,7 +414,11 @@ const AddVoterModal: React.FC<TAddVoterModal> = ({
                     name="cityCorporationName"
                     value={formData.cityCorporationName}
                     onChange={onChangeFormData}
-                    className="border-[2px] border-indigo-300 px-2 py-1 rounded-md"
+                    className={`border-[2px] ${
+                      inputError.cityCorporationName
+                        ? "border-red-500"
+                        : "border-indigo-300"
+                    } px-2 py-1 rounded-md`}
                   >
                     <option value="">Select City Corporation</option>
                     {selectedConstituency.boundaries.cityCorporations.map(
@@ -308,10 +438,14 @@ const AddVoterModal: React.FC<TAddVoterModal> = ({
                   <Flex className="flex-col gap-2">
                     <label>City Corporation Ward Number</label>
                     <select
-                      name="cityCorporation.wardNumber"
+                      name="cityCorporationWardNumber"
                       value={formData.cityCorporationWardNumber}
                       onChange={onChangeFormData}
-                      className="border-[2px] border-indigo-300 px-2 py-1 rounded-md"
+                      className={`border-[2px] ${
+                        inputError.cityCorporationWardNumber
+                          ? "border-red-500"
+                          : "border-indigo-300"
+                      } px-2 py-1 rounded-md`}
                     >
                       <option value="">Select Ward</option>
                       {selectedConstituency.boundaries.cityCorporations
@@ -342,9 +476,11 @@ const AddVoterModal: React.FC<TAddVoterModal> = ({
               type="date"
               name="dateOfBirth"
               id="dateOfBirth"
-              value={formData.dateOfBirth}
+              value={formData.dateOfBirth ?? ""}
               onChange={onChangeFormData}
-              className="border-[2px] border-indigo-300 focus:outline-indigo-500 px-2 py-1 rounded-md font-medium"
+              className={`border-[2px] ${
+                inputError.dateOfBirth ? "border-red-500" : "border-indigo-300"
+              } px-2 py-1 rounded-md`}
             />
           </Flex>
 
@@ -359,10 +495,12 @@ const AddVoterModal: React.FC<TAddVoterModal> = ({
               type="text"
               name="homeAddress"
               id="homeAddress"
-              value={formData.homeAddress}
+              value={formData.homeAddress ?? ""}
               placeholder="Enter Home Address"
               onChange={onChangeFormData}
-              className="border-[2px] border-indigo-300 focus:outline-indigo-500 px-2 py-1 rounded-md font-medium"
+              className={`border-[2px] ${
+                inputError.homeAddress ? "border-red-500" : "border-indigo-300"
+              } px-2 py-1 rounded-md`}
             />
           </Flex>
 

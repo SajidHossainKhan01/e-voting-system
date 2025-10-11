@@ -616,7 +616,9 @@ const EditVoterModal: React.FC<TEditVoterModal> = ({
             </button>
             <button
               type="button"
-              onClick={() => onSuccess(formData)}
+              onClick={() =>
+                onSuccess(formData)
+              }
               className="text-white px-4 py-1 bg-teal-500 hover:bg-teal-600 rounded-sm"
             >
               Update

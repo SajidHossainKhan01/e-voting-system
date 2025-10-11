@@ -17,19 +17,28 @@ export class ElectionContract extends Contract {
    * - Client provides: electionId
    */
   @Transaction()
-  public async Initialize(ctx: Context, electionId: string): Promise<string> {
+  public async Initialize(
+    ctx: Context,
+    electionId: string,
+    electionName: string
+  ): Promise<string> {
+    this._require(electionName, "electionName is required");
     this._require(electionId, "electionId is required");
-
     try {
-      const exists = await this.electionExists(ctx, electionId);
+      const exists = await this.electionExists(ctx, electionName);
       if (exists) {
-        return `This election is exists with election id: ${electionId}`;
+        return JSON.stringify({
+          message: `This election is exists with election name: ${electionName}`,
+          data: null,
+        });
       }
+
       const txTime = ctx.stub.getTxTimestamp();
       const now = new Date(txTime.seconds.low * 1000).toISOString();
 
       const electionRecord: ElectionStatusRecord = {
         electionId,
+        electionName,
         status: PermitStatus.INITIALIZED,
         updatedAt: now,
       };
@@ -39,7 +48,11 @@ export class ElectionContract extends Contract {
         Buffer.from(JSON.stringify(electionRecord))
       );
 
-      return `Election has been initialized with election ID : ${electionId}`;
+      // return `Election has been initialized with election ID : ${electionId}`;
+      return JSON.stringify({
+        message: "Election has been initialized",
+        data: electionRecord,
+      });
     } catch (error) {
       return `Internal server error: ${JSON.stringify(error)} | ${error}`;
     }
@@ -60,7 +73,10 @@ export class ElectionContract extends Contract {
     try {
       const electionBytes = await ctx.stub.getState(electionId);
       if (electionBytes.length === 0) {
-        return "Election is not found";
+        return JSON.stringify({
+          message: "Election is not found",
+          data: null,
+        });
       }
 
       const electionRec = JSON.parse(
@@ -68,7 +84,10 @@ export class ElectionContract extends Contract {
       ) as ElectionStatusRecord;
 
       if (electionRec.status === PermitStatus.STARTED) {
-        return "This election is already started";
+        return JSON.stringify({
+          message: "This election is already started",
+          data: null,
+        });
       }
 
       electionRec.status = PermitStatus.STARTED;
@@ -79,14 +98,21 @@ export class ElectionContract extends Contract {
         electionId
       );
 
-      if (isAlreadyFinished) return "This election is already finished";
+      if (isAlreadyFinished)
+        return JSON.stringify({
+          message: "This election is already finished",
+          data: null,
+        });
 
       await ctx.stub.putState(
         electionId,
         Buffer.from(JSON.stringify(electionRec))
       );
 
-      return "Election started!";
+      return JSON.stringify({
+        message: "Election is started",
+        data: electionRec,
+      });
     } catch (error) {
       return `Internal server error: ${error}`;
     }
@@ -106,7 +132,10 @@ export class ElectionContract extends Contract {
     try {
       const electionBytes = await ctx.stub.getState(electionId);
       if (electionBytes.length === 0) {
-        return "Election is not found";
+        return JSON.stringify({
+          message: "Election is not found",
+          data: null,
+        });
       }
 
       const electionRec = JSON.parse(
@@ -114,7 +143,10 @@ export class ElectionContract extends Contract {
       ) as ElectionStatusRecord;
 
       if (electionRec.status === PermitStatus.FINISHED) {
-        return "This election is already finished";
+        return JSON.stringify({
+          message: "This election is already finished",
+          data: null,
+        });
       }
 
       electionRec.status = PermitStatus.FINISHED;
@@ -125,7 +157,10 @@ export class ElectionContract extends Contract {
         Buffer.from(JSON.stringify(electionRec))
       );
 
-      return "Election has finished";
+      return JSON.stringify({
+        message: "Election has been finished",
+        data: electionRec,
+      });
     } catch (error) {
       return `Internal server error: ${error}`;
     }
@@ -137,12 +172,53 @@ export class ElectionContract extends Contract {
   }
 
   @Transaction(false)
-  private async electionExists(
+  public async getAllElection(ctx: Context): Promise<string> {
+    const electionList: ElectionStatusRecord[] = [];
+    const iter = await ctx.stub.getStateByRange("", "");
+    try {
+      while (true) {
+        const result = await iter.next();
+        if (result.value && result.value.value) {
+          const record = JSON.parse(
+            result.value.value.toString()
+          ) as ElectionStatusRecord;
+          electionList.push(record);
+        }
+
+        if (result.done) {
+          await iter.close();
+          break;
+        }
+      }
+    } finally {
+      await iter.close(); // make sure it's always closed
+    }
+    return JSON.stringify({
+      message: "Successfully get the list",
+      data: electionList,
+    });
+  }
+
+  @Transaction(false)
+  public async electionExists(
     ctx: Context,
-    electionId: string
+    electionName: string
   ): Promise<boolean> {
-    const electionJSON = await ctx.stub.getState(electionId);
-    return electionJSON.length > 0;
+    // Create a CouchDB rich query
+    const queryString = {
+      selector: {
+        electionName: electionName,
+      },
+    };
+
+    const iterator = await ctx.stub.getQueryResult(JSON.stringify(queryString));
+    const result = await iterator.next();
+
+    // If there’s at least one record found, it exists
+    const exists = !result.done;
+
+    await iterator.close();
+    return exists;
   }
 
   @Transaction(false)

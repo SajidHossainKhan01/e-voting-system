@@ -3,16 +3,18 @@ import Container from "../components/ui/Container";
 import Flex from "../components/ui/Flex";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 import { useNavigate } from "react-router";
+import { useAuthStore } from "../store/authStore"; // import your auth store
 
 type TUserLoginCredentials = { username?: string; password?: string };
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
+  const { login, loading, error } = useAuthStore(); // get login action and state from store
+
   const [userLoginCredentials, setUserLoginCredentials] =
     useState<TUserLoginCredentials>({ username: "", password: "" });
 
-  const [inputErrors, setInputError] = useState<{ [str: string]: string }>();
-
+  const [inputErrors, setInputError] = useState<{ [str: string]: string }>({});
   const [showPassword, setShowPassword] = useState(false);
 
   const onChangeFormInput = useCallback(
@@ -26,7 +28,7 @@ const Login: React.FC = () => {
   );
 
   const handleSubmit = useCallback(
-    (e: FormEvent) => {
+    async (e: FormEvent) => {
       e.preventDefault();
       const errors: { [key: string]: string } = {};
 
@@ -40,12 +42,27 @@ const Login: React.FC = () => {
 
       if (Object.keys(errors).length > 0) {
         setInputError(errors);
-      } else {
-        // TODO: Handle login api
+        return;
+      }
+
+      try {
+        // Call login from auth store
+        await login(
+          userLoginCredentials.username!,
+          userLoginCredentials.password!
+        );
+        // Navigate to home after successful login
         navigate("/");
+      } catch (err) {
+        console.error("Login failed:", err);
       }
     },
-    [navigate, userLoginCredentials.password, userLoginCredentials.username]
+    [
+      login,
+      navigate,
+      userLoginCredentials.username,
+      userLoginCredentials.password,
+    ]
   );
 
   return (
@@ -68,15 +85,14 @@ const Login: React.FC = () => {
                 name="username"
                 type="text"
                 autoComplete="username"
-                required
                 value={userLoginCredentials.username}
-                onChange={(e) => onChangeFormInput(e)}
+                onChange={onChangeFormInput}
                 className="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
                 placeholder="Enter your username"
               />
-              {inputErrors && (
+              {inputErrors.username && (
                 <h3 className="mt-3 text-red-500 font-semibold">
-                  {inputErrors["username"]}
+                  {inputErrors.username}
                 </h3>
               )}
             </div>
@@ -93,33 +109,37 @@ const Login: React.FC = () => {
                   name="password"
                   type={showPassword ? "text" : "password"}
                   autoComplete="current-password"
-                  required
                   value={userLoginCredentials.password}
-                  onChange={(e) => onChangeFormInput(e)}
+                  onChange={onChangeFormInput}
                   className="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
                   placeholder="Enter your password"
                 />
                 <button
                   type="button"
-                  className="absolute top-1/2 right-0 -translate-1/2 text-gray-400 hover:text-indigo-500"
+                  className="absolute top-1/2 right-0 -translate-y-1/2 text-gray-400 hover:text-indigo-500"
                   onClick={() => setShowPassword(!showPassword)}
                   tabIndex={-1}
                 >
                   {showPassword ? <FaEye /> : <FaEyeSlash />}
                 </button>
               </div>
-              {inputErrors && (
+              {inputErrors.password && (
                 <h3 className="mt-3 text-red-500 font-semibold">
-                  {inputErrors["password"]}
+                  {inputErrors.password}
                 </h3>
               )}
             </div>
+            {error && (
+              <h3 className="mt-2 text-red-500 font-semibold text-center">
+                {error}
+              </h3>
+            )}
             <button
               type="submit"
-              className="w-full py-2 px-4 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 transition cursor-pointer"
-              onClick={handleSubmit}
+              disabled={loading}
+              className="w-full py-2 px-4 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 transition cursor-pointer disabled:opacity-50"
             >
-              Sign In
+              {loading ? "Signing In..." : "Sign In"}
             </button>
           </form>
         </div>

@@ -1,12 +1,5 @@
 import { NextFunction, Request, Response, Router } from "express";
 import { verifyToken } from "../middlewares/verifyToken";
-import {
-  createVoterBody,
-  deleteVoterParams,
-  getAllWardVotersBody,
-  updateVoterBody,
-  updateVoterParams,
-} from "../../shared/validators/voterValidator";
 import { database } from "../mongodb_connection/connection";
 import { VoterModel } from "../models/voterModel";
 import { CollectionListNames } from "../config/config";
@@ -15,7 +8,7 @@ import { ObjectId } from "mongodb";
 const voterRouter = Router();
 
 // Get all voters
-voterRouter.get(
+voterRouter.post(
   "/get-all",
   verifyToken,
   async (req: Request, res: Response, next: NextFunction) => {
@@ -27,15 +20,17 @@ voterRouter.get(
         divisionName,
         upazila,
         cityCorporation,
-      } = getAllWardVotersBody.parse(req.body);
+      } = req.body;
 
       const query: any = {};
 
-      // Always check the higher level fields
-      if (divisionName) query.divisionName = divisionName;
-      if (districtName) query.districtName = districtName;
-      if (constituencyName) query.constituencyName = constituencyName;
-      if (constituencyNumber) query.constituencyNumber = constituencyNumber;
+      // Always check the higher level fields inside constituency
+      if (divisionName) query["constituency.divisionName"] = divisionName;
+      if (districtName) query["constituency.districtName"] = districtName;
+      if (constituencyName)
+        query["constituency.constituencyName"] = constituencyName;
+      if (constituencyNumber)
+        query["constituency.constituencyNumber"] = constituencyNumber;
 
       // Check for upazila-based voter
       if (
@@ -43,23 +38,23 @@ voterRouter.get(
         upazila?.unionName &&
         upazila?.wardNumber !== undefined
       ) {
-        query["upazila.upazilaName"] = upazila.upazilaName;
-        query["upazila.unionName"] = upazila.unionName;
-        query["upazila.wardNumber"] = upazila.wardNumber;
+        query["constituency.upazila.upazilaName"] = upazila.upazilaName;
+        query["constituency.upazila.unionName"] = upazila.unionName;
+        query["constituency.upazila.wardNumber"] = upazila.wardNumber;
       }
 
-      // Or check for city corporation-based voter
+      // Check for city corporation-based voter
       if (
         cityCorporation?.cityCorporationName &&
         cityCorporation?.wardNumber !== undefined
       ) {
-        query["cityCorporation.cityCorporationName"] =
+        query["constituency.cityCorporation.cityCorporationName"] =
           cityCorporation.cityCorporationName;
-        query["cityCorporation.wardNumber"] = cityCorporation.wardNumber;
+        query["constituency.cityCorporation.wardNumber"] =
+          cityCorporation.wardNumber;
       }
-
       const voterList = await database
-        .collection<VoterModel>(CollectionListNames.VOTER)
+        .collection(CollectionListNames.VOTER)
         .find(query)
         .toArray();
 
@@ -79,8 +74,7 @@ voterRouter.post(
   verifyToken,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { voterId, voterName, constituency, dateOfBirth } =
-        createVoterBody.parse(req.body);
+      const { voterId, voterName, dateOfBirth, constituency } = req.body;
 
       const exist = await database
         .collection<VoterModel>(CollectionListNames.VOTER)
@@ -132,10 +126,9 @@ voterRouter.post(
 
       return res.status(200).json({
         message: "Successfully created a new voter",
-        voter: newVoter,
       });
     } catch (error) {
-      next(error);
+      return next(error);
     }
   }
 );
@@ -146,7 +139,7 @@ voterRouter.delete(
   verifyToken,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { voterObjectId } = deleteVoterParams.parse(req.params);
+      const { voterObjectId } = req.params;
 
       const data = await database
         .collection<VoterModel>(CollectionListNames.VOTER)
@@ -161,7 +154,6 @@ voterRouter.delete(
 
       return res.status(200).json({
         message: "Successfully deleted voter",
-        voter: data,
       });
     } catch (error) {
       next(error);
@@ -172,35 +164,32 @@ voterRouter.delete(
 // Update a voter
 voterRouter.put(
   "/update/:voterObjectId",
-  verifyToken,
+  // verifyToken,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { voterObjectId } = updateVoterParams.parse(req.params);
+      const { voterObjectId } = req.params;
 
-      const { voterName, dateOfBirth, homeAddress, constituency } =
-        updateVoterBody.parse(req.body);
+      const { voterId, voterName, dateOfBirth, homeAddress, constituency } =
+        req.body;
 
       const updateFields: any = {};
 
       // top-level fields
+      if (voterId) updateFields.voterId = voterId;
       if (voterName) updateFields.voterName = voterName;
       if (dateOfBirth) updateFields.dateOfBirth = dateOfBirth;
 
       // nested constituency updates
       if (homeAddress) updateFields["constituency.homeAddress"] = homeAddress;
       if (constituency) {
-        for (const [key, value] of Object.entries(constituency)) {
-          updateFields[`constituency.${key}`] = value;
-        }
+        updateFields.constituency = constituency;
       }
 
       const data = await database
         .collection<VoterModel>(CollectionListNames.VOTER)
-        .findOneAndUpdate(
-          { _id: new ObjectId(voterObjectId) },
-          { $set: updateFields },
-          { returnDocument: "after" }
-        );
+        .findOneAndReplace({ _id: new ObjectId(voterObjectId) }, updateFields, {
+          returnDocument: "after",
+        });
 
       if (!data) {
         return res.status(404).json({ message: "Voter not found" });
@@ -208,7 +197,6 @@ voterRouter.put(
 
       return res.status(200).json({
         message: "Successfully updated",
-        voter: data,
       });
     } catch (error) {
       next(error);

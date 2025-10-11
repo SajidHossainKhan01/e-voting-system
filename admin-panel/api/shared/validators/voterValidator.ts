@@ -58,13 +58,6 @@ export const createVoterBody = z.object({
 
 export const createVoterResponse = z.object({
   message: z.string(),
-  voter: z.object({
-    _id: z.string(),
-    voterId: z.string(),
-    voterName: z.string(),
-    dateOfBirth: z.string(),
-    constituency: constituency,
-  }),
 });
 
 // Delete a voter
@@ -74,13 +67,6 @@ export const deleteVoterParams = z.object({
 
 export const deleteVoterResponse = z.object({
   message: z.string(),
-  voter: z.object({
-    _id: z.string(),
-    voterId: z.string(),
-    voterName: z.string(),
-    dateOfBirth: z.string(),
-    constituency: constituency,
-  }),
 });
 
 // Update a voter
@@ -102,11 +88,4 @@ export const updateVoterBody = z.object({
 
 export const updateVoterResponse = z.object({
   message: z.string(),
-  voter: z.object({
-    _id: z.string(),
-    voterId: z.string(),
-    voterName: z.string(),
-    dateOfBirth: z.string(),
-    constituency: constituency,
-  }),
 });

@@ -18,6 +18,9 @@ export class ElectionStatusRecord {
   public electionId: string = "";
 
   @Property()
+  public electionName: string = "";
+
+  @Property()
   public status: TPermitStatus = PermitStatus.INITIALIZED;
 
   @Property()

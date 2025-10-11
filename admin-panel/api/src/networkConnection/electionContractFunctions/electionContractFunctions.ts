@@ -1,14 +1,37 @@
 import { getElectionContractAndGateway } from "../networkConnection";
 
-export async function initializeElection(electionId: string) {
+type TElectionRecord = {
+  electionId: string;
+  electionName: string;
+  status: string;
+  updatedAt: string;
+};
+
+export async function getAllElections() {
+  const electionContract = await getElectionContractAndGateway();
+  try {
+    const response = await electionContract.submitTransaction("getAllElection");
+    const electionResponseObjectArray = JSON.parse(response.toString("utf-8"))
+      .data as TElectionRecord[];
+    return electionResponseObjectArray;
+  } catch (error) {
+    console.error(`Error in setup: ${error}`);
+  }
+}
+
+export async function initializeElection(
+  electionId: string,
+  electionName: string
+) {
   const electionContract = await getElectionContractAndGateway();
   try {
     const response = await electionContract.submitTransaction(
       "Initialize",
-      electionId
+      electionId,
+      electionName
     );
-    const message = response.toString("utf-8");
-    return message;
+    const electionResponseObject = JSON.parse(response.toString("utf-8"));
+    return electionResponseObject;
   } catch (error) {
     console.error(`Error in setup: ${error}`);
   }
@@ -21,8 +44,8 @@ export async function startElection(electionId: string) {
       "StartElection",
       electionId
     );
-    const message = response.toString("utf-8");
-    return message;
+    const electionResponseObject = JSON.parse(response.toString("utf-8"));
+    return electionResponseObject;
   } catch (error) {
     console.error(`Error in setup: ${error}`);
   }
@@ -35,8 +58,22 @@ export async function finishElection(electionId: string) {
       "FinishElection",
       electionId
     );
-    const message = response.toString("utf-8");
-    return message;
+    const electionResponseObject = JSON.parse(response.toString("utf-8"));
+    return electionResponseObject;
+  } catch (error) {
+    console.error(`Error in setup: ${error}`);
+  }
+}
+
+export async function isElectionExists(electionName: string) {
+  const electionContract = await getElectionContractAndGateway();
+  try {
+    const response = await electionContract.submitTransaction(
+      "electionExists",
+      electionName
+    );
+    const isExist = JSON.parse(response.toString("utf-8")) as boolean;
+    return isExist;
   } catch (error) {
     console.error(`Error in setup: ${error}`);
   }
